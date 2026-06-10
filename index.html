@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Pérdida en Redes Neuronales | TensorFlow.js</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons for premium UI look -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- TensorFlow.js and Chart.js CDNs -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: rgba(17, 24, 39, 0.7);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.4);
+            --secondary: #10b981;
+            --secondary-glow: rgba(16, 185, 129, 0.3);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --accent: #f43f5e;
+            --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 50%, #34d399 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.025em;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .highlight {
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        /* Dashboard Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 968px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards and Panels */
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            border-radius: 18px;
+            padding: 1.75rem;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .panel-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 0.75rem;
+        }
+
+        .panel-title i {
+            color: var(--primary);
+        }
+
+        /* Form Controls */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        select, input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: var(--text-main);
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            outline: none;
+            transition: var(--transition);
+            width: 100%;
+        }
+
+        select:focus, input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 0.85rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            transition: var(--transition);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #475569;
+            color: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, var(--accent) 0%, #e11d48 100%);
+            box-shadow: 0 4px 15px rgba(244, 63, 94, 0.3);
+        }
+
+        .btn-stop:hover {
+            box-shadow: 0 6px 20px rgba(244, 63, 94, 0.5);
+        }
+
+        /* Stats Section */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-top: 0.25rem;
+            color: var(--secondary);
+        }
+
+        .stat-value.loss-val {
+            color: #f59e0b;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
+            transition: width 0.1s linear;
+        }
+
+        /* Status Banner */
+        .status-banner {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.5);
+            border-left: 4px solid #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .status-banner.training {
+            border-left-color: var(--primary);
+            color: #a5b4fc;
+        }
+
+        .status-banner.completed {
+            border-left-color: var(--secondary);
+            color: #a7f3d0;
+        }
+
+        .status-banner.ready {
+            border-left-color: #38bdf8;
+            color: #e0f2fe;
+        }
+
+        /* Chart Area */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Array log container */
+        .log-panel {
+            max-height: 150px;
+            overflow-y: auto;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: #34d399;
+        }
+
+        .log-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .log-panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .log-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .log-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .log-item {
+            margin-bottom: 0.25rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .log-item:last-child {
+            margin-bottom: 0;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Visualización de Pérdida en Tiempo Real</h1>
+            <p>Monitorea cómo aprende un <span class="highlight">Modelo Secuencial</span> de TensorFlow.js capturando la métrica <code style="font-family:'JetBrains Mono'; color:#a5b4fc; background:rgba(99,102,241,0.1); padding:2px 6px; border-radius:4px;">loss</code> con <code style="font-family:'JetBrains Mono'; color:#34d399; background:rgba(52,211,153,0.1); padding:2px 6px; border-radius:4px;">onEpochEnd</code>.</p>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Left Side: Controls & Logs -->
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div class="panel">
+                    <div class="panel-title">
+                        <i data-lucide="sliders"></i>
+                        <span>Configuración de Red</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="datasetSelect">Función Objetivo</label>
+                        <select id="datasetSelect">
+                            <option value="linear">Lineal: y = 2x - 1 (Fácil)</option>
+                            <option value="quadratic">Cuadrática: y = x² - 3x + 2 (Media)</option>
+                            <option value="sine">Senoidal: y = sin(x) (Compleja)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="epochsInput">Épocas de Entrenamiento</label>
+                        <input type="number" id="epochsInput" value="100" min="10" max="500" step="10">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="lrInput">Tasa de Aprendizaje (Learning Rate)</label>
+                        <select id="lrInput">
+                            <option value="0.1">0.1</option>
+                            <option value="0.05">0.05</option>
+                            <option value="0.01" selected>0.01 (Recomendado)</option>
+                            <option value="0.001">0.001</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hiddenUnits">Neuronas en Capa Oculta</label>
+                        <input type="number" id="hiddenUnits" value="16" min="4" max="64" step="4">
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Época Actual</div>
+                            <div class="stat-value" id="currentEpochVal">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Pérdida (Loss)</div>
+                            <div class="stat-value loss-val" id="currentLossVal">-</div>
+                        </div>
+                    </div>
+
+                    <div class="progress-container" id="progressBarContainer">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+
+                    <div class="status-banner ready" id="statusBanner">
+                        <i data-lucide="play" size="16"></i>
+                        <span id="statusText">Modelo listo para entrenar</span>
+                    </div>
+
+                    <button class="btn" id="startBtn">
+                        <i data-lucide="play"></i>
+                        <span>Iniciar Entrenamiento</span>
+                    </button>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">
+                        <i data-lucide="list"></i>
+                        <span>Historial de Pérdidas (Arreglo)</span>
+                    </div>
+                    <div class="log-panel" id="logPanel">
+                        <!-- Epoch records will appear here -->
+                        <div style="color: var(--text-muted); font-style: italic;">Esperando inicio del entrenamiento...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Chart -->
+            <div class="panel" style="justify-content: space-between;">
+                <div class="panel-title" style="justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <i data-lucide="line-chart" style="color: var(--secondary);"></i>
+                        <span>Curva de Aprendizaje: Pérdida vs Épocas</span>
+                    </div>
+                    <span style="font-size: 0.8rem; background: rgba(16, 185, 129, 0.1); color: var(--secondary); padding: 4px 8px; border-radius: 20px; font-weight: 500;">
+                        Chart.js Activo
+                    </span>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="lossChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            Desarrollado con TensorFlow.js & Chart.js
+        </footer>
+    </div>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // UI Elements
+        const datasetSelect = document.getElementById('datasetSelect');
+        const epochsInput = document.getElementById('epochsInput');
+        const lrInput = document.getElementById('lrInput');
+        const hiddenUnitsInput = document.getElementById('hiddenUnits');
+        const startBtn = document.getElementById('startBtn');
+        const currentEpochVal = document.getElementById('currentEpochVal');
+        const currentLossVal = document.getElementById('currentLossVal');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const progressBar = document.getElementById('progressBar');
+        const statusBanner = document.getElementById('statusBanner');
+        const statusText = document.getElementById('statusText');
+        const logPanel = document.getElementById('logPanel');
+        const ctx = document.getElementById('lossChart').getContext('2d');
+
+        // Global state variables for tracking data requested by user
+        let lossHistory = []; // Requisito: Guardar los valores en un arreglo
+        let epochLabels = []; // Epoch indices
+        let chart = null;
+        let stopTrainingRequested = false;
+        let model = null;
+
+        // Initialize Chart.js Chart
+        function initChart() {
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Función de Pérdida (Loss)',
+                        data: [],
+                        borderColor: '#6366f1',
+                        borderWidth: 3,
+                        backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: (context) => {
+                            // Show points on start, end, and every 10% of total epochs
+                            const total = parseInt(epochsInput.value);
+                            const index = context.dataIndex;
+                            if (index === 0 || index === total - 1 || index % Math.max(1, Math.round(total / 10)) === 0) {
+                                return 4;
+                            }
+                            return 0; // Hide intermediate points for clean styling
+                        },
+                        pointBackgroundColor: '#10b981',
+                        pointBorderColor: '#fff',
+                        pointHoverRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#f3f4f6',
+                                font: {
+                                    family: 'Outfit',
+                                    size: 13
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { family: 'Outfit', size: 13, weight: 'bold' },
+                            bodyFont: { family: 'JetBrains Mono', size: 12 },
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Épocas',
+                                color: '#9ca3af',
+                                font: { family: 'Outfit', size: 14, weight: 600 }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)',
+                            },
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { family: 'JetBrains Mono', size: 11 }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Valor de Pérdida (MSE / Loss)',
+                                color: '#9ca3af',
+                                font: { family: 'Outfit', size: 14, weight: 600 }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)',
+                            },
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { family: 'JetBrains Mono', size: 11 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Generate Synthetic Data based on selected task
+        function generateData(type, count = 200) {
+            return tf.tidy(() => {
+                let xs, ys;
+                if (type === 'linear') {
+                    // y = 2x - 1 + noise
+                    const rawX = tf.randomUniform([count], -1, 1);
+                    const noise = tf.randomNormal([count], 0, 0.05);
+                    const rawY = rawX.mul(2).sub(1).add(noise);
+                    xs = rawX;
+                    ys = rawY;
+                } else if (type === 'quadratic') {
+                    // y = x^2 - 3x + 2 + noise
+                    const rawX = tf.randomUniform([count], -2, 2);
+                    const noise = tf.randomNormal([count], 0, 0.1);
+                    const rawY = rawX.square().sub(rawX.mul(3)).add(2).add(noise);
+                    xs = rawX;
+                    ys = rawY;
+                } else {
+                    // y = sin(x) + noise
+                    const rawX = tf.randomUniform([count], -Math.PI, Math.PI);
+                    const noise = tf.randomNormal([count], 0, 0.05);
+                    const rawY = tf.sin(rawX).add(noise);
+                    xs = rawX;
+                    ys = rawY;
+                }
+                
+                // Keep references to inputs and outputs
+                return {
+                    xs: tf.keep(xs),
+                    ys: tf.keep(ys)
+                };
+            });
+        }
+
+        // Build Neural Network Model
+        function createModel(type, lr, hiddenUnits) {
+            const model = tf.sequential();
+            
+            if (type === 'linear') {
+                // Simple 1-neuron model is enough for linear
+                model.add(tf.layers.dense({ inputShape: [1], units: 1 }));
+            } else {
+                // Multi-layer network for complex curves (sine, quadratic)
+                model.add(tf.layers.dense({ inputShape: [1], units: hiddenUnits, activation: 'relu' }));
+                model.add(tf.layers.dense({ units: hiddenUnits, activation: 'relu' }));
+                model.add(tf.layers.dense({ units: 1 }));
+            }
+
+            model.compile({
+                optimizer: tf.train.adam(lr),
+                loss: 'meanSquaredError'
+            });
+
+            return model;
+        }
+
+        // Training Process
+        async function runTraining() {
+            // Read inputs
+            const type = datasetSelect.value;
+            const epochs = parseInt(epochsInput.value);
+            const lr = parseFloat(lrInput.value);
+            const hiddenUnits = parseInt(hiddenUnitsInput.value);
+
+            // UI feedback
+            startBtn.disabled = true;
+            datasetSelect.disabled = true;
+            epochsInput.disabled = true;
+            lrInput.disabled = true;
+            hiddenUnitsInput.disabled = true;
+
+            statusBanner.className = 'status-banner training';
+            statusText.innerText = 'Entrenando modelo secuencial...';
+            progressBarContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            
+            // Clean arrays
+            lossHistory = [];
+            epochLabels = [];
+            logPanel.innerHTML = '';
+            initChart();
+
+            // Generate synthetic training data
+            const data = generateData(type);
+
+            // Instantiate and compile the sequential model
+            model = createModel(type, lr, hiddenUnits);
+
+            try {
+                // Train the model using the fit method
+                await model.fit(data.xs, data.ys, {
+                    epochs: epochs,
+                    batchSize: 32,
+                    shuffle: true,
+                    callbacks: {
+                        // Requisito 1: Capturar el valor de loss en cada época usando el callback onEpochEnd
+                        onEpochEnd: async (epoch, logs) => {
+                            const currentLoss = logs.loss;
+                            const currentEpoch = epoch + 1;
+
+                            // Requisito 2: Guardar los valores en un arreglo
+                            lossHistory.push(currentLoss);
+                            epochLabels.push(currentEpoch);
+
+                            // Update stats display
+                            currentEpochVal.innerText = currentEpoch;
+                            currentLossVal.innerText = currentLoss.toFixed(6);
+
+                            // Update progress bar
+                            const percent = (currentEpoch / epochs) * 100;
+                            progressBar.style.width = `${percent}%`;
+
+                            // Requisito 3: Graficar esos valores en función de las épocas
+                            // Update Chart.js live
+                            chart.data.labels.push(currentEpoch);
+                            chart.data.datasets[0].data.push(currentLoss);
+                            chart.update('none'); // Update without full animation for performance
+
+                            // Add to text log panel
+                            const logItem = document.createElement('div');
+                            logItem.className = 'log-item';
+                            logItem.innerHTML = `<span>Época ${currentEpoch}:</span> <span>Loss: ${currentLoss.toFixed(6)}</span>`;
+                            logPanel.appendChild(logItem);
+                            logPanel.scrollTop = logPanel.scrollHeight;
+
+                            // Small delay to allow browser paints and smoother updates
+                            await tf.nextFrame();
+                        }
+                    }
+                });
+
+                // Completed training successfully
+                statusBanner.className = 'status-banner completed';
+                statusText.innerText = '¡Entrenamiento completado exitosamente!';
+                
+                // Update icons and visual feedback
+                const bannerIcon = statusBanner.querySelector('i');
+                if (bannerIcon) bannerIcon.setAttribute('data-lucide', 'check-circle');
+                lucide.createIcons();
+
+            } catch (err) {
+                console.error(err);
+                statusBanner.className = 'status-banner ready';
+                statusText.innerText = 'El entrenamiento se interrumpió.';
+            } finally {
+                // Dispose tensors
+                data.xs.dispose();
+                data.ys.dispose();
+                if (model) {
+                    model.dispose();
+                }
+
+                // Reset UI buttons
+                startBtn.disabled = false;
+                datasetSelect.disabled = false;
+                epochsInput.disabled = false;
+                lrInput.disabled = false;
+                hiddenUnitsInput.disabled = false;
+            }
+        }
+
+        // Event Listeners
+        startBtn.addEventListener('click', () => {
+            runTraining();
+        });
+
+        // Initialize empty chart on load
+        initChart();
+    </script>
+</body>
+</html>
